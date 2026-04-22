@@ -1,0 +1,250 @@
+%% Load Data %%
+sensorData  = readtable('SLACleanMagnetometerUncalibrated.csv');
+
+%% Min-Max Calibration %%
+magX = sensorData.x;
+magY = sensorData.y;
+magZ = sensorData.z;
+
+xMin = min(magX); xMax = max(magX);
+yMin = min(magY); yMax = max(magY);
+zMin = min(magZ); zMax = max(magZ);
+
+% Hard iron offsets
+hardDist = [(xMin+xMax)/2, (yMin+yMax)/2, (zMin+zMax)/2];
+
+% Soft iron scale factors
+xRange   = (xMax - xMin) / 2;
+yRange   = (yMax - yMin) / 2;
+zRange   = (zMax - zMin) / 2;
+avgRange = (xRange + yRange + zRange) / 3;
+sX = avgRange / xRange;
+sY = avgRange / yRange;
+sZ = avgRange / zRange;
+
+% Apply calibration to data
+minMaxX = (magX - hardDist(1)) * sX;
+minMaxY = (magY - hardDist(2)) * sY;
+minMaxZ = (magZ - hardDist(3)) * sZ;
+
+% Graph 1: Magnetometer XYZ before and after calibration
+figure;
+subplot(3,2,1);
+plot(magX, magY, 'r.');
+axis equal; grid on;
+xlabel('X (uT)'); ylabel('Y (uT)');
+title('Raw Magnetometer XY');
+
+subplot(3,2,2);
+plot(minMaxX, minMaxY, 'b.');
+axis equal; grid on;
+xlabel('X (uT)'); ylabel('Y (uT)');
+title('Calibrated Magnetometer XY');
+
+subplot(3,2,3);
+plot(magX, magZ, 'r.');
+axis equal; grid on;
+xlabel('X (uT)'); ylabel('Z (uT)');
+title('Raw Magnetometer XZ');
+
+subplot(3,2,4);
+plot(minMaxX, minMaxZ, 'b.');
+axis equal; grid on;
+xlabel('X (uT)'); ylabel('Z (uT)');
+title('Calibrated Magnetometer XZ');
+
+subplot(3,2,5);
+plot(magY, magZ, 'r.');
+axis equal; grid on;
+xlabel('Y (uT)'); ylabel('Z (uT)');
+title('Raw Magnetometer YZ');
+
+subplot(3,2,6);
+plot(minMaxY, minMaxZ, 'b.');
+axis equal; grid on;
+xlabel('Y (uT)'); ylabel('Z (uT)');
+title('Calibrated Magnetometer YZ');
+
+% Graph 2: Time series before and after calibration
+t = (1:length(magX))';
+
+figure;
+subplot(3,2,1); plot(t, magX); ylabel('X (uT)'); title('Raw Magnetometer'); grid on;
+subplot(3,2,3); plot(t, magY); ylabel('Y (uT)'); grid on;
+subplot(3,2,5); plot(t, magZ); ylabel('Z (uT)'); xlabel('Sample'); grid on;
+
+subplot(3,2,2); plot(t, minMaxX); ylabel('X (uT)'); title('Calibrated Magnetometer'); grid on;
+subplot(3,2,4); plot(t, minMaxY); ylabel('Y (uT)'); grid on;
+subplot(3,2,6); plot(t, minMaxZ); ylabel('Z (uT)'); xlabel('Sample'); grid on;
+
+fprintf('\n--- Summary: MinMax Calibration ---\n');
+fprintf('Hard iron offsets (uT): [%.2f, %.2f, %.2f]\n', hardDist);
+fprintf('Soft iron scale — X: %.4f  Y: %.4f  Z: %.4f\n', sX, sY, sZ);
+
+fprintf('\n--- Summary: MinMax Magnitude Error ---\n');
+magMag = sqrt(minMaxX.^2 + minMaxY.^2 + minMaxZ.^2);
+fprintf('Mean calibrated field magnitude: %.2f uT\n', mean(magMag));
+fprintf('Std of field magnitude: %.2f uT\n', std(magMag));
+expectedField = 52.0; % approximate Earth field magnitude in Boston (uT)
+magnitudeError = abs(mean(magMag) - expectedField);
+magnitudeErrorPct = (magnitudeError / expectedField) * 100;
+fprintf('Expected field magnitude (Boston): %.2f uT\n', expectedField);
+fprintf('Magnitude error: %.2f uT (%.1f%%)\n', magnitudeError, magnitudeErrorPct);
+
+%% Magcal Calibration %%
+magXYZ = [magX, magY, magZ];
+[A,b,expMFS]  = magcal(magXYZ);
+XYZMagcal = (magXYZ-b)*A;
+
+% Extract individual calibrated axes
+magcalX = XYZMagcal(:,1);
+magcalY = XYZMagcal(:,2);
+magcalZ = XYZMagcal(:,3);
+
+% Graph 1: Magnetometer XYZ before and after calibration
+figure;
+subplot(3,2,1);
+plot(magX, magY, 'r.');
+axis equal; grid on;
+xlabel('X (uT)'); ylabel('Y (uT)');
+title('Raw Magnetometer XY');
+
+subplot(3,2,2);
+plot(magcalX, magcalY, 'b.');
+axis equal; grid on;
+xlabel('X (uT)'); ylabel('Y (uT)');
+title('Calibrated Magnetometer XY');
+
+subplot(3,2,3);
+plot(magX, magZ, 'r.');
+axis equal; grid on;
+xlabel('X (uT)'); ylabel('Z (uT)');
+title('Raw Magnetometer XZ');
+
+subplot(3,2,4);
+plot(magcalX, magcalZ, 'b.');
+axis equal; grid on;
+xlabel('X (uT)'); ylabel('Z (uT)');
+title('Calibrated Magnetometer XZ');
+
+subplot(3,2,5);
+plot(magY, magZ, 'r.');
+axis equal; grid on;
+xlabel('Y (uT)'); ylabel('Z (uT)');
+title('Raw Magnetometer YZ');
+
+subplot(3,2,6);
+plot(magcalY, magcalZ, 'b.');
+axis equal; grid on;
+xlabel('Y (uT)'); ylabel('Z (uT)');
+title('Calibrated Magnetometer YZ');
+
+% Graph 2: Time series before and after calibration
+t = (1:length(magX))';
+
+figure;
+subplot(3,2,1); plot(t, magX); ylabel('X (uT)'); title('Raw Magnetometer'); grid on;
+subplot(3,2,3); plot(t, magY); ylabel('Y (uT)'); grid on;
+subplot(3,2,5); plot(t, magZ); ylabel('Z (uT)'); xlabel('Sample'); grid on;
+
+subplot(3,2,2); plot(t, magcalX); ylabel('X (uT)'); title('Calibrated Magnetometer'); grid on;
+subplot(3,2,4); plot(t, magcalY); ylabel('Y (uT)'); grid on;
+subplot(3,2,6); plot(t, magcalZ); ylabel('Z (uT)'); xlabel('Sample'); grid on;
+
+fprintf('\n--- Summary: Magcal Calibration ---\n');
+fprintf('Hard iron offsets (uT): [%.2f, %.2f, %.2f]\n', b);
+fprintf('Soft iron scale — [%.2f, %.2f, %.2f]\n', A);
+
+fprintf('\n--- Summary: Magcal Magnitude Error ---\n');
+magMag = sqrt(magcalX.^2 + magcalY.^2 + magcalZ.^2);
+fprintf('Mean calibrated field magnitude: %.2f uT\n', mean(magMag));
+fprintf('Std of field magnitude: %.2f uT\n', std(magMag));
+expectedField = 52.0; % approximate Earth field magnitude in Boston (uT)
+magnitudeError = abs(mean(magMag) - expectedField);
+magnitudeErrorPct = (magnitudeError / expectedField) * 100;
+fprintf('Expected field magnitude (Boston): %.2f uT\n', expectedField);
+fprintf('Magnitude error: %.2f uT (%.1f%%)\n', magnitudeError, magnitudeErrorPct);
+
+%% Kalman Filter Calibration %%
+% Stack raw data into Nx3 matrix
+magXYZ = [magXCircle, magYCircle, magZCircle];
+N = size(magXYZ, 1);
+
+% --- Tuning Parameters ---
+% Process noise — how much you expect the bias to drift per sample
+% Small value = bias assumed very stable
+Q = 0.01 * eye(3);
+
+% Measurement noise — based on your sensor's noise floor
+% Estimate from your clean baseline std (~1.28 uT)
+R = 1.28^2 * eye(3);
+
+% --- Initialization ---
+% Initialize bias estimate using MinMax result as starting point
+b_kf = hardDist';          % 3x1 column vector, from your MinMax result
+P_kf = 10 * eye(3);       % Initial covariance — high uncertainty at start
+
+% Preallocate output
+magKF = zeros(N, 3);
+biasHistory = zeros(N, 3);
+
+% --- Kalman Filter Loop ---
+for k = 1:N
+    % Current raw measurement (3x1)
+    z_k = magXYZ(k,:)';
+
+    % --- Predict ---
+    % Bias assumed constant (identity state transition)
+    b_pred = b_kf;
+    P_pred = P_kf + Q;
+
+    % --- Update ---
+    % Innovation: difference between measurement and predicted bias-corrected value
+    % We want ||m - b|| = expMFS, so innovation is scalar field magnitude error
+    m_corrected = z_k - b_pred;
+    mag_norm = norm(m_corrected);
+
+    % Measurement Jacobian H (linearized around current estimate)
+    if mag_norm > 0
+        H = -(m_corrected / mag_norm)';   % 1x3
+    else
+        H = zeros(1,3);
+    end
+
+    % Expected measurement is the field magnitude
+    z_expected = expMFS;   % scalar — expected field magnitude from magcal
+    z_actual   = mag_norm; % scalar — current corrected magnitude
+
+    % Innovation covariance
+    S = H * P_pred * H' + (R(1,1)); % scalar
+
+    % Kalman gain (3x1)
+    K = P_pred * H' / S;
+
+    % Update bias estimate
+    b_kf = b_pred + K * (z_actual - z_expected);
+
+    % Update covariance
+    P_kf = (eye(3) - K * H) * P_pred;
+
+    % Apply current bias estimate to this sample
+    magKF(k,:) = (z_k - b_kf)';
+    biasHistory(k,:) = b_kf';
+end
+
+% --- Results ---
+magKF_X = magKF(:,1);
+magKF_Y = magKF(:,2);
+magKF_Z = magKF(:,3);
+
+magMag_KF = sqrt(magKF_X.^2 + magKF_Y.^2 + magKF_Z.^2);
+
+fprintf('\n--- Summary: Kalman Filter Calibration ---\n');
+fprintf('Final bias estimate (uT): [%.2f, %.2f, %.2f]\n', b_kf);
+fprintf('Mean calibrated field magnitude: %.2f uT\n', mean(magMag_KF));
+fprintf('Std of field magnitude: %.2f uT\n', std(magMag_KF));
+expectedField = 52.0;
+magnitudeError_KF = abs(mean(magMag_KF) - expectedField);
+fprintf('Expected field magnitude (Boston): %.2f uT\n', expectedField);
+fprintf('Magnitude error: %.2f uT (%.1f%%)\n', ...
+    magnitudeError_KF, (magnitudeError_KF/expectedField)*100);
